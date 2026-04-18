@@ -1,0 +1,512 @@
+```html
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Sick Whale Brawl - Neon Transit</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        body {
+            margin: 0; overflow: hidden; background: #050505;
+            font-family: 'Courier New', Courier, monospace;
+            touch-action: none; color: white; user-select: none;
+        }
+        #game-container {
+            position: relative; width: 100vw; height: 100vh;
+            display: flex; flex-direction: column; align-items: center; justify-content: center;
+        }
+        canvas {
+            background: #000; border: 4px solid #1a1a1a; image-rendering: pixelated;
+            max-width: 98%; max-height: 65vh; box-shadow: 0 0 80px rgba(0,0,0,1);
+        }
+        #menu-overlay {
+            position: absolute; inset: 0; background: rgba(0,0,0,0.98);
+            display: flex; flex-direction: column; align-items: center; justify-content: center; z-index: 100;
+        }
+        .char-card {
+            border: 2px solid #222; padding: 12px; text-align: center;
+            background: #0a0a0a; width: 150px; cursor: pointer; transition: 0.2s; margin: 6px;
+        }
+        .char-card:hover { border-color: #f00; background: #151515; transform: scale(1.05); }
+        
+        .ui-overlay {
+            position: absolute; top: 12px; width: 90%;
+            display: flex; justify-content: space-between; pointer-events: none; z-index: 50;
+        }
+        .meter-container {
+            width: 140px; height: 10px; background: #000; border: 1px solid #333; margin-top: 5px; overflow: hidden;
+        }
+        #p-special-fill { width: 0%; height: 100%; background: #0ff; box-shadow: 0 0 15px #0ff; }
+        .hp-bar-fill { height: 100%; background: #f33; box-shadow: 0 0 5px #f00; transition: width 0.15s; }
+
+        .controls-container {
+            width: 100%; display: flex; justify-content: space-between; align-items: center;
+            padding: 10px 20px; max-width: 900px;
+        }
+        .d-pad { position: relative; width: 130px; height: 130px; }
+        .btn {
+            position: absolute; background: #1a1a1a; border: 2px solid #333; width: 44px; height: 44px;
+            display: flex; align-items: center; justify-content: center; border-radius: 4px; color: #666; font-size: 20px;
+        }
+        .btn:active { background: #333; color: #fff; }
+        #ctrl-up { top: 0; left: 43px; }
+        #ctrl-down { bottom: 0; left: 43px; }
+        #ctrl-left { top: 43px; left: 0; }
+        #ctrl-right { top: 43px; right: 0; }
+
+        .action-pad { position: relative; width: 130px; height: 130px; }
+        .act-btn {
+            position: absolute; width: 54px; height: 54px; border-radius: 50%;
+            display: flex; align-items: center; justify-content: center; font-weight: 900;
+            box-shadow: 0 5px #000; font-size: 10px; text-transform: uppercase;
+        }
+        .act-btn:active { transform: translateY(3px); box-shadow: 0 2px #000; }
+        
+        #ctrl-special { top: 0; left: 38px; background: #044; border: 3px solid #088; color: #0ff; }
+        #ctrl-attack  { top: 38px; left: 0; background: #611; border: 3px solid #911; color: #f88; }
+        #ctrl-jump    { bottom: 0; left: 38px; background: #333; border: 3px solid #555; color: #aaa; }
+
+        .hidden { display: none !important; }
+        #go-arrow {
+            position: absolute; right: 25px; top: 45%; color: #f00; font-size: 35px;
+            font-weight: 900; animation: flash 0.4s infinite alternate; display: none; z-index: 60;
+        }
+        @keyframes flash { from { opacity: 0.2; transform: translateX(0); } to { opacity: 1; transform: translateX(15px); } }
+    </style>
+</head>
+<body>
+
+<div id="game-container">
+    <div id="menu-overlay">
+        <h1 class="text-4xl font-black text-red-700 italic mb-2">SICK WHALE BRAWL</h1>
+        <p class="text-[9px] tracking-[0.6em] mb-10 text-gray-500">AORTA VI // DON'T BE ONE OF THEM</p>
+        <div class="flex flex-wrap justify-center max-w-sm">
+            <div class="char-card" onclick="start('Gusher')"><div class="text-blue-500 font-bold">GUSHER</div></div>
+            <div class="char-card" onclick="start('Tazer')"><div class="text-red-500 font-bold text-xs">TAZER</div></div>
+            <div class="char-card" onclick="start('Sharp')"><div class="text-yellow-500 font-bold">SHARP</div></div>
+            <div class="char-card" onclick="start('Raz')"><div class="text-purple-500 font-bold">RAZ</div></div>
+        </div>
+    </div>
+
+    <div class="ui-overlay hidden" id="game-ui">
+        <div>
+            <div id="p-name" class="font-black italic text-lg leading-none">WHALE</div>
+            <div id="p-life" class="text-[9px] font-mono mt-2">LIFE: [||||||||]</div>
+            <div class="meter-container"><div id="p-special-fill"></div></div>
+        </div>
+        <div class="text-right">
+            <div id="score-val" class="text-2xl font-black">000000</div>
+            <div id="zone-name" class="text-red-600 font-bold text-[8px] uppercase tracking-widest">DRIFTING...</div>
+            <div id="enemy-hud" class="mt-2 opacity-0 transition-opacity">
+                <div id="e-name" class="text-[7px] uppercase text-gray-400">---</div>
+                <div class="w-[80px] h-[3px] bg-red-950/40 inline-block">
+                    <div id="e-hp-fill" class="hp-bar-fill" style="width: 100%"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <div id="go-arrow">GO ▶</div>
+    <canvas id="gameCanvas" class="hidden"></canvas>
+
+    <div class="controls-container hidden" id="game-controls">
+        <div class="d-pad">
+            <div class="btn" id="ctrl-up">▲</div>
+            <div class="btn" id="ctrl-down">▼</div>
+            <div class="btn" id="ctrl-left">◀</div>
+            <div class="btn" id="ctrl-right">▶</div>
+        </div>
+        <div class="action-pad">
+            <div class="act-btn" id="ctrl-special">SPEC</div>
+            <div class="act-btn" id="ctrl-attack">HIT</div>
+            <div class="act-btn" id="ctrl-jump">JUMP</div>
+        </div>
+    </div>
+</div>
+
+<script>
+    const canvas = document.getElementById('gameCanvas');
+    const ctx = canvas.getContext('2d');
+    const VW = 576, VH = 324;
+    canvas.width = VW; canvas.height = VH;
+
+    const ZONES = [
+        { n: "AMBER ALLEY", g: "#2a2720", s: "#111", p: "trash" },
+        { n: "PARKING STRATA", g: "#222", s: "#050510", p: "car" },
+        { n: "OIL WATERFRONT", g: "#101820", s: "#000", p: "crate" },
+        { n: "SICK WHALE ARENA", g: "#1a0808", s: "#050000", p: "ribs" }
+    ];
+
+    const CHARS = {
+        'Gusher': { s: 2.1, hp: 12, dmg: 2.2, c: '#3b82f6', sh: '#1d4ed8', scale: 1.45 },
+        'Tazer':  { s: 3.3, hp: 9,  dmg: 1.6, c: '#4aa', sh: '#b91c1c', scale: 1.2 },
+        'Sharp':  { s: 4.8, hp: 7,  dmg: 1.2, c: '#fbbf24', sh: '#713f12', scale: 1.2 },
+        'Raz':    { s: 1.5, hp: 30, dmg: 0.4, c: '#c084fc', sh: '#ffffff', scale: 1.2 }
+    };
+
+    const THUG_PREFIXES = ["Wet", "Beef", "Soggy", "Loose", "Marrow-less", "Greasy", "Dusty", "Chapped", "Brittle", "Silent"];
+    const THUG_SUFFIXES = ["Sock", "Gristle", "Mike", "Shin", "Pete", "Lung", "Brick", "Lump", "Cough", "Rat"];
+
+    let s = {
+        active: false, p: null, enemies: [], props: [], particles: [],
+        score: 0, def: 0, zoneI: 0, scroll: 0, isScr: false,
+        scrPh: 0, brawl: true, foc: null, hudT: 0, shake: 0,
+        specT: 0, trippy: 0, recoil: 0
+    };
+
+    const input = { up:0, down:0, left:0, right:0, attack:0, jump:0, special:0 };
+    function bind(id, k) {
+        const el = document.getElementById(id);
+        const set = (v) => (e) => { 
+            e.preventDefault(); 
+            input[k] = v; 
+            if(v && k==='special' && s.p.special >= 100) triggerSpecial();
+        };
+        el.addEventListener('touchstart', set(1)); el.addEventListener('touchend', set(0));
+        el.addEventListener('mousedown', set(1)); el.addEventListener('mouseup', set(0));
+    }
+    ['up','down','left','right','attack','jump','special'].forEach(k => bind('ctrl-'+k, k));
+
+    function start(char) {
+        const d = CHARS[char];
+        s.p = {
+            name: char, x: 80, y: 240, z: 0, vz: 0, hp: d.hp, max: d.hp, 
+            s: d.s, dmg: d.dmg, c: d.c, sh: d.sh, scale: d.scale,
+            special: 0, inv: 0, facing: 1, atk: 0, waddle: 0, razDumb: 0,
+            skating: 0
+        };
+        spawnProps(0);
+        document.getElementById('menu-overlay').classList.add('hidden');
+        ['game-ui', 'gameCanvas', 'game-controls'].forEach(id => document.getElementById(id).classList.remove('hidden'));
+        document.getElementById('p-name').innerText = char.toUpperCase();
+        document.getElementById('p-name').style.color = d.c;
+        document.getElementById('zone-name').innerText = ZONES[0].n;
+        s.active = true; loop();
+    }
+
+    function spawnProps(offset) {
+        const zone = ZONES[s.zoneI];
+        const xBase = VW + offset;
+        if (zone.p === 'trash') s.props.push({ t:'trash', x: xBase + 50, y: 220 }, { t:'trash', x: xBase + 250, y: 260 });
+        else if (zone.p === 'car') s.props.push({ t:'car', x: xBase + 120, y: 280 }, { t:'car', x: xBase + 340, y: 230 });
+        else if (zone.p === 'crate') s.props.push({ t:'crate', x: xBase + 40, y: 210 }, { t:'crate', x: xBase + 220, y: 300 });
+        else s.props.push({ t:'ribs', x: xBase + 150, y: 240 });
+    }
+
+    function triggerSpecial() {
+        const p = s.p; p.special = 0; s.specT = 60;
+        if (p.name === 'Gusher') {
+            s.shake = 35;
+            s.recoil = 30;
+            s.particles.push({ x: p.x, y: p.y-50, t: "HYDRAULIC PURGE", c: "#0ff", l: 40 });
+        } else if (p.name === 'Tazer') {
+            s.trippy = 300;
+            s.enemies.forEach(en => { en.dazed = 300; en.vx = (Math.random()-0.5)*12; });
+            s.particles.push({ x: p.x, y: p.y-50, t: "HOT BOX", c: "#f0f", l: 60 });
+        } else if (p.name === 'Sharp') {
+            p.skating = 450; 
+            s.particles.push({ x: p.x, y: p.y-50, t: "NEON TRANSIT", c: "#ff00ff", l: 60 });
+        } else if (p.name === 'Raz') {
+            p.razDumb = 180;
+            s.particles.push({ x: p.x, y: p.y-50, t: "STRUCTURAL FAILURE", c: "#fff", l: 40 });
+        }
+    }
+
+    function hitTest(range, dmg, isSpecial = false) {
+        const p = s.p; const rm = 1.05;
+        s.enemies.forEach(en => {
+            if (en.rocket) return;
+            const dx = Math.abs(en.x - p.x);
+            const dy = Math.abs(en.y - p.y);
+            let hit = false;
+            
+            if (isSpecial && p.name === 'Gusher') hit = dy < 50 && en.x > p.x;
+            else if (p.name === 'Sharp' && p.skating > 0) hit = dx < 45 && dy < 35;
+            else if (isSpecial && p.name === 'Sharp') hit = dx < 170 && dy < 50;
+            else hit = dx < range*rm && dy < 30 && Math.sign(en.x - p.x) === p.facing;
+
+            if (hit) {
+                if ((p.name === 'Tazer' && en.dazed > 0) || (p.name === 'Sharp' && p.skating > 0)) {
+                    en.rocket = true;
+                    en.vx = p.facing * 28;
+                    en.hp = -1;
+                    s.shake = (p.name === 'Sharp') ? 18 : 22;
+                    const msg = (p.name === 'Sharp') ? "KINETIC DISCHARGE" : "ATMOSPHERIC EJECTION";
+                    const col = (p.name === 'Sharp') ? "#ff00ff" : "#f0f";
+                    s.particles.push({ x: en.x, y: en.y - 50, t: msg, c: col, l: 30 });
+                    return;
+                }
+
+                en.hp -= dmg; en.hit = 10; en.vx = p.facing * 10;
+                if (!isSpecial) p.special = Math.min(100, p.special + 10);
+                s.foc = en; s.hudT = 120;
+                document.getElementById('enemy-hud').classList.remove('opacity-0');
+                document.getElementById('e-name').innerText = en.name;
+            }
+        });
+    }
+
+    function update() {
+        if (!s.active) return;
+        const p = s.p;
+
+        if (s.brawl) {
+            if (s.enemies.length === 0 && s.def < 10) {
+                const count = Math.random() > 0.6 ? 3 : 2;
+                for(let k=0; k<count; k++) {
+                    const name = `${THUG_PREFIXES[Math.floor(Math.random()*THUG_PREFIXES.length)]} ${THUG_SUFFIXES[Math.floor(Math.random()*THUG_SUFFIXES.length)]}`;
+                    s.enemies.push({ 
+                        x: VW + 60 + (k * 100), y: 200+Math.random()*90, hp: 5+s.zoneI, max: 5+s.zoneI, 
+                        hit: 0, vx: 0, s: 1.1 + (s.zoneI*0.3), dazed: 0, name: name, atkCool: 60, rocket: false
+                    });
+                }
+            } else if (s.def >= 10 && s.enemies.length === 0) {
+                s.brawl = false; document.getElementById('go-arrow').style.display = 'block';
+            }
+        }
+
+        if (!s.isScr) {
+            if (p.razDumb > 0) {
+                p.vx = 0; p.vy = 0; p.razDumb--;
+                hitTest(75, 0.5, true);
+            } else {
+                let currentSpeed = p.s;
+                if (p.skating > 0) {
+                    currentSpeed *= 2.4;
+                    p.skating--;
+                    hitTest(45, 0); 
+                }
+
+                p.vx = (input.right - input.left) * currentSpeed;
+                p.vy = (input.down - input.up) * currentSpeed * 0.7;
+                
+                if (s.recoil > 0) {
+                    p.vx = -s.recoil; 
+                    s.recoil *= 0.88;
+                    if(s.recoil < 0.5) s.recoil = 0;
+                }
+
+                if (p.vx !== 0) p.facing = Math.sign(p.vx);
+                if (input.jump && p.z === 0) p.vz = 8;
+                if (input.attack && p.atk === 0) { p.atk = 15; hitTest(65, p.dmg); }
+            }
+            
+            p.z += p.vz;
+            if (p.z > 0) p.vz -= 0.45; else { p.z = 0; p.vz = 0; }
+            if (p.atk > 0) {
+                p.atk--;
+                if (p.name === 'Sharp' && s.specT > 0 && p.skating <= 0) hitTest(170, 0.5, true);
+            }
+            if (p.inv > 0) p.inv--;
+
+            if (s.specT > 0) {
+                s.specT--;
+                if (p.name === 'Gusher') hitTest(VW, 0.5, true);
+            }
+
+            if (!s.brawl && p.x > VW - 40) {
+                s.isScr = true; s.scrPh = 0;
+                document.getElementById('go-arrow').style.display = 'none';
+                s.zoneI = (s.zoneI + 1) % ZONES.length;
+                spawnProps(0);
+            }
+        } else {
+            const spd = 5;
+            s.scroll += spd; s.scrPh += spd; 
+            p.x = Math.max(20, p.x - (spd * 0.95));
+            s.props.forEach(pr => pr.x -= spd);
+            
+            if (s.scrPh >= VW) {
+                s.isScr = false; s.brawl = true; s.def = 0;
+                document.getElementById('zone-name').innerText = ZONES[s.zoneI].n;
+            }
+        }
+
+        p.x = Math.max(20, Math.min(VW-20, p.x + p.vx));
+        p.y = Math.max(195, Math.min(VH-20, p.y + p.vy));
+        if (p.z === 0 && (Math.abs(p.vx) > 0.1 || Math.abs(p.vy) > 0.1)) p.waddle += 0.25;
+
+        s.enemies.forEach((en, i) => {
+            if (en.rocket) {
+                en.x += en.vx;
+                if (en.x < -200 || en.x > VW + 200) {
+                    s.enemies.splice(i, 1);
+                    s.score += 1000;
+                    s.def++;
+                }
+                return;
+            }
+
+            if (en.hit > 0) en.hit--;
+            if (en.dazed > 0) {
+                en.dazed--; en.vx = Math.sin(Date.now()*0.015)*3;
+                en.x += en.vx;
+            } else if (!s.isScr) {
+                const dx = p.x - en.x;
+                const dy = p.y - en.y;
+                const dist = Math.sqrt(dx*dx + dy*dy);
+                
+                if (dist > 55) {
+                    en.x += (dx/dist) * en.s + en.vx;
+                    en.y += (dy/dist) * en.s * 0.7;
+                } else {
+                    if (en.atkCool > 0) en.atkCool--;
+                    else {
+                        en.atkCool = 80;
+                        if (p.inv === 0 && p.z < 25) {
+                            p.hp -= 1.5; p.inv = 60;
+                            s.shake = 10;
+                            s.particles.push({x:p.x, y:p.y-50, t:"LACERATED", c:"#f60", l:30});
+                        }
+                    }
+                }
+                en.vx *= 0.85;
+            }
+            if (en.hp <= 0 && !en.rocket) {
+                if(s.foc === en) document.getElementById('e-hp-fill').style.width = '0%';
+                s.enemies.splice(i, 1); s.score += 300; s.def++;
+            }
+        });
+
+        if (s.trippy > 0) s.trippy--;
+        if (s.hudT > 0) { s.hudT--; if (s.hudT === 0) document.getElementById('enemy-hud').classList.add('opacity-0'); }
+        if (s.shake > 0) s.shake--;
+
+        document.getElementById('p-life').innerText = `LIFE: [${'|'.repeat(Math.max(0,Math.ceil(p.hp)))}${'.'.repeat(Math.max(0,p.max-Math.ceil(p.hp)))}]`;
+        document.getElementById('p-special-fill').style.width = p.special + '%';
+        document.getElementById('score-val').innerText = s.score.toString().padStart(6, '0');
+        if (s.foc && s.hudT > 0) {
+            document.getElementById('e-hp-fill').style.width = (Math.max(0, s.foc.hp/s.foc.max)*100) + '%';
+        }
+    }
+
+    function draw() {
+        if (!s.active) return;
+        const curZ = ZONES[s.isScr ? (s.zoneI === 0 ? ZONES.length-1 : s.zoneI-1) : s.zoneI];
+        const nextZ = ZONES[s.zoneI];
+        
+        ctx.save();
+        if (s.shake > 0) ctx.translate((Math.random()-0.5)*s.shake, (Math.random()-0.5)*s.shake);
+        if (s.trippy > 0) ctx.filter = `hue-rotate(${Date.now()*0.15}deg) saturate(2.5)`;
+
+        ctx.fillStyle = curZ.s; ctx.fillRect(0,0,VW,VH);
+        if(s.isScr) {
+            ctx.fillStyle = nextZ.s;
+            ctx.fillRect(VW - s.scrPh, 0, s.scrPh, VH);
+        }
+        
+        ctx.fillStyle = "#080808";
+        const boff = (s.scroll * 0.4) % 280;
+        for(let i=-1; i<4; i++) ctx.fillRect(i*280 - boff, 40, 85, 140);
+
+        const groundY = 180;
+        ctx.fillStyle = curZ.g; ctx.fillRect(0, groundY, VW, VH-groundY);
+        if(s.isScr) {
+            ctx.fillStyle = nextZ.g;
+            ctx.fillRect(VW - s.scrPh, groundY, s.scrPh, VH-groundY);
+        }
+
+        ctx.strokeStyle = "rgba(255,255,255,0.04)";
+        for(let i=0; i<12; i++) { 
+            ctx.beginPath(); ctx.moveTo(0, groundY+i*14); ctx.lineTo(VW, groundY+i*14); ctx.stroke(); 
+        }
+
+        const drawables = [...s.enemies, ...s.props, s.p].sort((a,b) => a.y - b.y);
+
+        drawables.forEach(obj => {
+            ctx.save(); ctx.translate(obj.x, obj.y);
+            const scale = 1.2;
+            
+            if (obj.t === 'trash') {
+                ctx.fillStyle = "#222"; ctx.fillRect(-15*scale, -35*scale, 30*scale, 35*scale);
+            } else if (obj.t === 'car') {
+                ctx.fillStyle = "#0c0c0c"; ctx.fillRect(-55*scale, -28*scale, 110*scale, 28*scale);
+            } else if (obj.t === 'crate') {
+                ctx.fillStyle = "#2a1a15"; ctx.fillRect(-22*scale, -40*scale, 44*scale, 40*scale);
+            } else if (obj.t === 'ribs') {
+                ctx.strokeStyle = "#333"; ctx.lineWidth=5; ctx.beginPath(); ctx.arc(0,0,45*scale,Math.PI,0); ctx.stroke();
+            } else if (obj === s.p) {
+                if (s.specT > 0 && s.p.name === 'Gusher') {
+                    const grad = ctx.createLinearGradient(0, -30, VW, -30);
+                    grad.addColorStop(0, "rgba(0, 255, 255, 0.9)");
+                    grad.addColorStop(1, "rgba(0, 100, 255, 0)");
+                    ctx.fillStyle = grad;
+                    ctx.fillRect(0, -45, VW, 35);
+                }
+
+                ctx.translate(0, -obj.z);
+                if (obj.facing === -1) ctx.scale(-1, 1);
+                
+                const pScale = obj.scale;
+
+                if (obj.razDumb > 0) {
+                    ctx.rotate(Date.now()*0.06);
+                    ctx.fillStyle = "#555"; ctx.fillRect(-18*pScale,-18*pScale,36*pScale,36*pScale);
+                } else {
+                    const isSkating = (obj.name === 'Sharp' && obj.skating > 0);
+                    
+                    // Locked rotation during skate
+                    const currentWaddle = isSkating ? 0 : Math.sin(obj.waddle)*0.12;
+                    ctx.rotate(obj.z === 0 && (Math.abs(s.p.vx)>0.1 || Math.abs(s.p.vy)>0.1) ? currentWaddle : 0);
+                    
+                    ctx.fillStyle = "rgba(0,0,0,0.6)"; ctx.beginPath(); ctx.ellipse(0, obj.z, 24*pScale, 6*pScale, 0, 0, 7); ctx.fill();
+                    
+                    if (isSkating) {
+                        ctx.fillStyle = "#ff00ff"; // HOT PINK
+                        ctx.fillRect(-28*pScale, 2, 56*pScale, 5); 
+                        ctx.fillStyle = "#111";
+                        ctx.beginPath(); ctx.arc(-20*pScale, 10, 4, 0, 7); ctx.fill(); 
+                        ctx.beginPath(); ctx.arc(20*pScale, 10, 4, 0, 7); ctx.fill(); 
+                    }
+
+                    ctx.fillStyle = obj.c; ctx.fillRect(-18*pScale, -60*pScale, 36*pScale, 60*pScale);
+                    ctx.fillStyle = obj.sh; ctx.fillRect(-20*pScale, -42*pScale, 40*pScale, 30*pScale);
+                    
+                    if (s.p.atk > 0 && s.p.name === 'Sharp' && s.specT > 0 && s.p.skating <= 0) {
+                        ctx.strokeStyle = "#fb0"; ctx.lineWidth = 5;
+                        ctx.beginPath(); ctx.moveTo(0,-30); 
+                        ctx.quadraticCurveTo(80, -70+Math.sin(Date.now()*0.2)*50, 170, -30);
+                        ctx.stroke();
+                    }
+                }
+            } else {
+                const orange = "#f60";
+                const darkOrange = "#930";
+                
+                if (obj.rocket) {
+                    ctx.fillStyle = "rgba(255,100,0,0.3)";
+                    ctx.fillRect(-obj.vx*2, -65*scale, obj.vx*2, 65*scale);
+                }
+
+                ctx.fillStyle = obj.hit > 0 || obj.rocket ? "#fff" : orange; 
+                ctx.fillRect(-19*scale, -65*scale, 38*scale, 65*scale);
+                ctx.fillStyle = darkOrange; 
+                ctx.fillRect(-19*scale, -30*scale, 38*scale, 30*scale);
+                
+                if (obj.dazed > 0 && !obj.rocket) {
+                    ctx.fillStyle = "#ff0"; ctx.beginPath(); ctx.arc(0, -80*scale + Math.sin(Date.now()*0.015)*8, 4, 0, 7); ctx.fill();
+                }
+            }
+            ctx.restore();
+        });
+
+        s.particles.forEach((p, i) => {
+            ctx.fillStyle = p.c; ctx.font = "bold 11px monospace"; ctx.fillText(p.t, p.x, p.y);
+            p.y -= 1.4; p.l--; if(p.l<=0) s.particles.splice(i,1);
+        });
+
+        if (s.p.hp <= 0) {
+            ctx.fillStyle = "rgba(0,0,0,0.95)"; ctx.fillRect(0,0,VW,VH);
+            ctx.fillStyle = "#f00"; ctx.textAlign="center"; ctx.font="24px monospace"; ctx.fillText("ONE OF THEM", VW/2, VH/2);
+            s.active = false;
+        }
+        ctx.restore();
+    }
+
+    function loop() { update(); draw(); if (s.active) requestAnimationFrame(loop); }
+</script>
+</body>
+</html>
+
+```
